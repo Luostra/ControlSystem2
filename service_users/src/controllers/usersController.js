@@ -105,3 +105,60 @@ router.post('/login', validateRequest(loginValidator), async (req, res, next) =>
     next(error);
   }
 });
+
+// Получение профиля
+router.get('/profile', authenticate, (req, res) => {
+  const user = usersDB[req.user.userId];
+  
+  res.json({
+    success: true,
+    data: {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        roles: user.roles,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      }
+    }
+  });
+});
+
+// Обновление профиля
+router.put('/profile', authenticate, validateRequest(updateProfileValidator), async (req, res, next) => {
+  try {
+    const { name, password } = req.body;
+    const user = usersDB[req.user.userId];
+
+    const updates = {
+      ...user,
+      name: name || user.name,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (password) {
+      updates.password = await hashPassword(password);
+    }
+
+    usersDB[req.user.userId] = updates;
+
+    logger.info({ userId: req.user.userId }, 'User profile updated');
+
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: updates.id,
+          email: updates.email,
+          name: updates.name,
+          roles: updates.roles,
+          createdAt: updates.createdAt,
+          updatedAt: updates.updatedAt
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
