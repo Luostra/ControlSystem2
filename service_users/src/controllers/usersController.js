@@ -66,3 +66,42 @@ router.post('/register', validateRequest(registerValidator), async (req, res, ne
   }
 });
 
+// Вход пользователя
+router.post('/login', validateRequest(loginValidator), async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    // Поиск пользователя
+    const user = Object.values(usersDB).find(u => u.email === email);
+    if (!user || !(await comparePassword(password, user.password))) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'INVALID_CREDENTIALS',
+          message: 'Invalid email or password'
+        }
+      });
+    }
+
+    // Генерация токена
+    const token = generateToken({ userId: user.id, email: user.email, roles: user.roles });
+
+    logger.info({ userId: user.id, email }, 'User logged in successfully');
+
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          roles: user.roles,
+          createdAt: user.createdAt
+        },
+        token
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
