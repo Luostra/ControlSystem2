@@ -1,11 +1,11 @@
 {
-  "name": "service-users",
+  "name": "service_users",
   "version": "1.0.0",
-  "description": "Users microservice on Node.js",
-  "main": "index.js",
+  "description": "Users microservice",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
