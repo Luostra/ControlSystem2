@@ -162,3 +162,87 @@ router.put('/profile', authenticate, validateRequest(updateProfileValidator), as
     next(error);
   }
 });
+
+// Список пользователей (только для админов)
+router.get('/', authenticate, (req, res, next) => {
+  try {
+    if (!req.user.roles.includes('admin')) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Insufficient permissions'
+        }
+      });
+    }
+
+    const { page = 1, limit = 10, email } = req.query;
+    const usersArray = Object.values(usersDB);
+    
+    // Фильтрация по email
+    let filteredUsers = usersArray;
+    if (email) {
+      filteredUsers = usersArray.filter(user => 
+        user.email.toLowerCase().includes(email.toLowerCase())
+      );
+    }
+
+    // Пагинация
+    const startIndex = (page - 1) * limit;
+    const endIndex = page * limit;
+    const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+
+    // Удаление паролей из ответа
+    const usersWithoutPasswords = paginatedUsers.map(({ password, ...user }) => user);
+
+    res.json({
+      success: true,
+      data: {
+        users: usersWithoutPasswords,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: filteredUsers.length,
+          totalPages: Math.ceil(filteredUsers.length / limit)
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Получение пользователя по ID (только для админов)
+router.get('/:userId', authenticate, (req, res) => {
+  if (!req.user.roles.includes('admin')) {
+    return res.status(403).json({
+      success: false,
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Insufficient permissions'
+      }
+    });
+  }
+
+  const user = usersDB[req.params.userId];
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      error: {
+        code: 'USER_NOT_FOUND',
+        message: 'User not found'
+      }
+    });
+  }
+
+  const { password, ...userWithoutPassword } = user;
+
+  res.json({
+    success: true,
+    data: {
+      user: userWithoutPassword
+    }
+  });
+});
+
+module.exports = router;
