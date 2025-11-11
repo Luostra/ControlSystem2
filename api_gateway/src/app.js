@@ -1,8 +1,21 @@
 const express = require('express');
 const cors = require('cors');
+const pinoHttp = require('pino-http');
+const { requestId } = require('./middleware/logging');
+const { errorHandler } = require('./middleware/errorHandler');
+const { globalRateLimit } = require('./middleware/rateLimit');
 
 const app = express();
 
+// Middleware
+app.use(requestId);
+app.use(pinoHttp({
+  level: process.env.LOG_LEVEL || 'info',
+  redact: ['req.headers.authorization'],
+  customProps: (req) => ({
+    requestId: req.id
+  })
+}));
 
 // CORS configuration
 app.use(cors({
@@ -13,6 +26,9 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// Global rate limiting
+app.use(globalRateLimit);
 
 // Health checks (public)
 app.get('/health', (req, res) => {
@@ -26,5 +42,8 @@ app.get('/health', (req, res) => {
     }
   });
 });
+
+// Error handling
+app.use(errorHandler);
 
 module.exports = app;
