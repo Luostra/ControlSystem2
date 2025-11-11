@@ -3,6 +3,7 @@ const { authenticate } = require('../middleware/auth');
 const { createCircuitBreaker } = require('../utils/circuitBreaker');
 const { forwardRequest } = require('../utils/request');
 const logger = require('pino')();
+const { getStatusCodeFromError } = require('../utils/errorMapper');
 
 const router = express.Router();
 
@@ -42,7 +43,6 @@ router.post('/login', async (req, res, next) => {
       res
     );
 
-    // Если сервис вернул ошибку, передаем соответствующий статус
     if (response.success === false) {
       const statusCode = getStatusCodeFromError(response.error.code);
       return res.status(statusCode).json(response);
@@ -65,7 +65,6 @@ router.get('/profile', authenticate, async (req, res, next) => {
       res
     );
 
-    // Если сервис вернул ошибку, передаем соответствующий статус
     if (response.success === false) {
       const statusCode = getStatusCodeFromError(response.error.code);
       return res.status(statusCode).json(response);
@@ -87,7 +86,6 @@ router.put('/profile', authenticate, async (req, res, next) => {
       res
     );
 
-    // Если сервис вернул ошибку, передаем соответствующий статус
     if (response.success === false) {
       const statusCode = getStatusCodeFromError(response.error.code);
       return res.status(statusCode).json(response);
@@ -110,7 +108,6 @@ router.get('/', authenticate, async (req, res, next) => {
       res
     );
 
-    // Если сервис вернул ошибку, передаем соответствующий статус
     if (response.success === false) {
       const statusCode = getStatusCodeFromError(response.error.code);
       return res.status(statusCode).json(response);
@@ -132,7 +129,6 @@ router.get('/:userId', authenticate, async (req, res, next) => {
       res
     );
     
-    // Если сервис вернул ошибку, передаем соответствующий статус
     if (response.success === false) {
       const statusCode = getStatusCodeFromError(response.error.code);
       return res.status(statusCode).json(response);
@@ -147,25 +143,3 @@ router.get('/:userId', authenticate, async (req, res, next) => {
     next(error);
   }
 });
-
-
-// Вспомогательная функция для определения статус кода по коду ошибки
-const getStatusCodeFromError = (errorCode) => {
-  const statusMap = {
-    'USER_NOT_FOUND': 404,
-    'FORBIDDEN': 403,
-    'UNAUTHORIZED': 401,
-    'INVALID_CREDENTIALS': 401,
-    'VALIDATION_ERROR': 400,
-    'USER_EXISTS': 409,
-    'ORDER_NOT_FOUND': 404,
-    'ACCESS_DENIED': 403,
-    'ALREADY_CANCELLED': 400,
-    'CANNOT_CANCEL': 400,
-    'INVALID_STATUS': 400
-  };
-  
-  return statusMap[errorCode] || 500;
-};
-
-module.exports = router;
