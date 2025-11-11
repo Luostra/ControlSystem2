@@ -12,7 +12,8 @@
     "cors": "^2.8.5",
     "jsonwebtoken": "^9.0.2",
     "pino": "^8.15.0",
-    "pino-http": "^8.3.3"
+    "pino-http": "^8.3.3",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
