@@ -143,3 +143,5 @@ router.get('/:userId', authenticate, async (req, res, next) => {
     next(error);
   }
 });
+
+module.exports = router;

@@ -145,3 +145,5 @@ router.get('/admin/all', async (req, res, next) => {
     next(error);
   }
 });
+
+module.exports = router;

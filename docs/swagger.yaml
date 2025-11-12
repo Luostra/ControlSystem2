@@ -1,0 +1,760 @@
+openapi: 3.0.0
+info:
+  title: Система управления строительными задачами
+  description: |
+    Микросервисная система для управления пользователями и заказами.
+
+    ## Роли пользователей:
+    - **user** - обычный пользователь (может управлять своими заказами)
+    - **admin** - администратор (имеет доступ ко всем функциям)
+
+    ## Аутентификация:
+    Все защищенные endpoints требуют JWT токен в заголовке `Authorization: Bearer <token>`
+  version: 1.0.0
+  contact:
+    name: ООО «СистемаКонтроля»
+    email: support@systemcontrol.ru
+
+servers:
+  - url: http://localhost:8000
+    description: Локальный сервер разработки
+  - url: https://api.systemcontrol.ru
+    description: Продакшен сервер
+
+tags:
+  - name: Аутентификация
+    description: Регистрация и вход пользователей
+  - name: Пользователи
+    description: Управление пользователями и профилями
+  - name: Заказы
+    description: Управление заказами и задачами
+  - name: Система
+    description: Health checks и мониторинг
+
+paths:
+  # ========== АУТЕНТИФИКАЦИЯ ==========
+  /v1/users/register:
+    post:
+      tags: [Аутентификация]
+      summary: Регистрация нового пользователя
+      description: Создание нового пользователя в системе
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - name
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  minLength: 6
+                  example: password123
+                name:
+                  type: string
+                  minLength: 2
+                  example: Иван Иванов
+                roles:
+                  type: array
+                  items:
+                    type: string
+                    enum: [user, admin]
+                  default: [user]
+                  example: [user]
+      responses:
+        "201":
+          description: Пользователь успешно создан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                success: true
+                data:
+                  user:
+                    id: "uuid-12345"
+                    email: "user@example.com"
+                    name: "Иван Иванов"
+                    roles: ["user"]
+                    createdAt: "2024-01-15T10:30:00.000Z"
+                  token: "jwt-token-here"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          description: Пользователь с таким email уже существует
+          content:
+            application/json:
+              example:
+                success: false
+                error:
+                  code: "USER_EXISTS"
+                  message: "User with this email already exists"
+
+  /v1/users/login:
+    post:
+      tags: [Аутентификация]
+      summary: Вход в систему
+      description: Аутентификация пользователя и получение JWT токена
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  example: password123
+      responses:
+        "200":
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                success: true
+                data:
+                  user:
+                    id: "uuid-12345"
+                    email: "user@example.com"
+                    name: "Иван Иванов"
+                    roles: ["user"]
+                    createdAt: "2024-01-15T10:30:00.000Z"
+                  token: "jwt-token-here"
+        "401":
+          description: Неверные учетные данные
+          content:
+            application/json:
+              example:
+                success: false
+                error:
+                  code: "INVALID_CREDENTIALS"
+                  message: "Invalid email or password"
+
+  # ========== ПОЛЬЗОВАТЕЛИ ==========
+  /v1/users/profile:
+    get:
+      tags: [Пользователи]
+      summary: Получить профиль текущего пользователя
+      description: Получение информации о текущем аутентифицированном пользователе
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Профиль пользователя
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  user:
+                    id: "uuid-12345"
+                    email: "user@example.com"
+                    name: "Иван Иванов"
+                    roles: ["user"]
+                    createdAt: "2024-01-15T10:30:00.000Z"
+                    updatedAt: "2024-01-15T10:30:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    put:
+      tags: [Пользователи]
+      summary: Обновить профиль пользователя
+      description: Обновление информации текущего пользователя
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  example: "Новое имя"
+                password:
+                  type: string
+                  minLength: 6
+                  example: "newpassword123"
+      responses:
+        "200":
+          description: Профиль успешно обновлен
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  user:
+                    id: "uuid-12345"
+                    email: "user@example.com"
+                    name: "Новое имя"
+                    roles: ["user"]
+                    createdAt: "2024-01-15T10:30:00.000Z"
+                    updatedAt: "2024-01-16T12:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/users:
+    get:
+      tags: [Пользователи]
+      summary: Список пользователей (только для админов)
+      description: Получение списка всех пользователей с пагинацией и фильтрацией
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Номер страницы
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Количество записей на странице
+        - name: email
+          in: query
+          schema:
+            type: string
+          description: Фильтр по email
+      responses:
+        "200":
+          description: Список пользователей
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  users:
+                    - id: "uuid-12345"
+                      email: "user1@example.com"
+                      name: "Иван Иванов"
+                      roles: ["user"]
+                      createdAt: "2024-01-15T10:30:00.000Z"
+                    - id: "uuid-67890"
+                      email: "admin@systemcontrol.ru"
+                      name: "Администратор"
+                      roles: ["admin", "user"]
+                      createdAt: "2024-01-10T08:00:00.000Z"
+                  pagination:
+                    page: 1
+                    limit: 10
+                    total: 2
+                    totalPages: 1
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /v1/users/{userId}:
+    get:
+      tags: [Пользователи]
+      summary: Получить пользователя по ID (только для админов)
+      description: Получение информации о конкретном пользователе
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID пользователя
+      responses:
+        "200":
+          description: Информация о пользователе
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  user:
+                    id: "uuid-12345"
+                    email: "user@example.com"
+                    name: "Иван Иванов"
+                    roles: ["user"]
+                    createdAt: "2024-01-15T10:30:00.000Z"
+                    updatedAt: "2024-01-15T10:30:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/UserNotFound"
+
+  # ========== ЗАКАЗЫ ==========
+  /v1/orders:
+    post:
+      tags: [Заказы]
+      summary: Создать новый заказ
+      description: Создание нового заказа для текущего пользователя
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - items
+              properties:
+                items:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required:
+                      - product
+                      - quantity
+                      - price
+                    properties:
+                      product:
+                        type: string
+                        example: "Строительные материалы"
+                      quantity:
+                        type: integer
+                        minimum: 1
+                        example: 5
+                      price:
+                        type: number
+                        minimum: 0
+                        example: 150.50
+                notes:
+                  type: string
+                  example: "Срочная доставка"
+      responses:
+        "201":
+          description: Заказ успешно создан
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  order:
+                    id: "order-uuid-123"
+                    userId: "user-uuid-456"
+                    items:
+                      - id: "item-uuid-1"
+                        product: "Строительные материалы"
+                        quantity: 5
+                        price: 150.5
+                        subtotal: 752.5
+                    status: "created"
+                    totalAmount: 752.5
+                    notes: "Срочная доставка"
+                    createdAt: "2024-01-15T10:30:00.000Z"
+                    updatedAt: "2024-01-15T10:30:00.000Z"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/UserNotFound"
+
+    get:
+      tags: [Заказы]
+      summary: Список заказов текущего пользователя
+      description: Получение списка заказов текущего пользователя с пагинацией и сортировкой
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Номер страницы
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Количество записей на странице
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, updatedAt, totalAmount]
+            default: createdAt
+          description: Поле для сортировки
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Порядок сортировки
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [created, in work, completed, cancelled]
+          description: Фильтр по статусу
+      responses:
+        "200":
+          description: Список заказов
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  orders:
+                    - id: "order-uuid-123"
+                      userId: "user-uuid-456"
+                      items: [...]
+                      status: "created"
+                      totalAmount: 752.5
+                      notes: "Срочная доставка"
+                      createdAt: "2024-01-15T10:30:00.000Z"
+                      updatedAt: "2024-01-15T10:30:00.000Z"
+                  pagination:
+                    page: 1
+                    limit: 10
+                    total: 1
+                    totalPages: 1
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/orders/{orderId}:
+    get:
+      tags: [Заказы]
+      summary: Получить заказ по ID
+      description: Получение информации о конкретном заказе
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID заказа
+      responses:
+        "200":
+          description: Информация о заказе
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  order:
+                    id: "order-uuid-123"
+                    userId: "user-uuid-456"
+                    items: [...]
+                    status: "created"
+                    totalAmount: 752.5
+                    notes: "Срочная доставка"
+                    createdAt: "2024-01-15T10:30:00.000Z"
+                    updatedAt: "2024-01-15T10:30:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/OrderNotFound"
+
+  /v1/orders/{orderId}/status:
+    patch:
+      tags: [Заказы]
+      summary: Обновить статус заказа
+      description: Обновление статуса заказа. Пользователь может обновлять только свои заказы, админ - любые.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID заказа
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [created, in work, completed, cancelled]
+                  example: "in work"
+      responses:
+        "200":
+          description: Статус заказа обновлен
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  order:
+                    id: "order-uuid-123"
+                    userId: "user-uuid-456"
+                    items: [...]
+                    status: "in work"
+                    totalAmount: 752.5
+                    notes: "Срочная доставка"
+                    createdAt: "2024-01-15T10:30:00.000Z"
+                    updatedAt: "2024-01-16T12:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/OrderNotFound"
+
+  /v1/orders/{orderId}/cancel:
+    post:
+      tags: [Заказы]
+      summary: Отменить заказ
+      description: Отмена заказа. Нельзя отменить завершенный заказ.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID заказа
+      responses:
+        "200":
+          description: Заказ отменен
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  order:
+                    id: "order-uuid-123"
+                    userId: "user-uuid-456"
+                    items: [...]
+                    status: "cancelled"
+                    totalAmount: 752.5
+                    notes: "Срочная доставка"
+                    createdAt: "2024-01-15T10:30:00.000Z"
+                    updatedAt: "2024-01-16T12:00:00.000Z"
+        "400":
+          description: Нельзя отменить заказ
+          content:
+            application/json:
+              example:
+                success: false
+                error:
+                  code: "CANNOT_CANCEL"
+                  message: "Cannot cancel completed order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/OrderNotFound"
+
+  /v1/orders/admin/all:
+    get:
+      tags: [Заказы]
+      summary: Все заказы (только для админов)
+      description: Получение списка всех заказов в системе
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: userId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Фильтр по пользователю
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [created, in work, completed, cancelled]
+          description: Фильтр по статусу
+      responses:
+        "200":
+          description: Список всех заказов
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  orders: [...]
+                  pagination:
+                    page: 1
+                    limit: 10
+                    total: 15
+                    totalPages: 2
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ========== СИСТЕМА ==========
+  /health:
+    get:
+      tags: [Система]
+      summary: Health check
+      description: Проверка статуса API Gateway и подключенных сервисов
+      responses:
+        "200":
+          description: Система работает
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  status: "OK"
+                  service: "API Gateway"
+                  timestamp: "2024-01-15T10:30:00.000Z"
+                  requestId: "req-12345"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    SuccessResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          description: Данные ответа
+
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - error
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              description: Код ошибки
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              description: Сообщение об ошибке
+              example: "Invalid input data"
+            details:
+              type: array
+              description: Детали ошибки валидации
+              items:
+                type: object
+
+  responses:
+    Unauthorized:
+      description: Не авторизован
+      content:
+        application/json:
+          example:
+            success: false
+            error:
+              code: "UNAUTHORIZED"
+              message: "Authentication token required"
+
+    Forbidden:
+      description: Доступ запрещен
+      content:
+        application/json:
+          example:
+            success: false
+            error:
+              code: "FORBIDDEN"
+              message: "Insufficient permissions"
+
+    ValidationError:
+      description: Ошибка валидации
+      content:
+        application/json:
+          example:
+            success: false
+            error:
+              code: "VALIDATION_ERROR"
+              message: "Invalid input data"
+              details:
+                - path: ["body", "email"]
+                  message: "Invalid email format"
+
+    UserNotFound:
+      description: Пользователь не найден
+      content:
+        application/json:
+          example:
+            success: false
+            error:
+              code: "USER_NOT_FOUND"
+              message: "User not found"
+
+    OrderNotFound:
+      description: Заказ не найден
+      content:
+        application/json:
+          example:
+            success: false
+            error:
+              code: "ORDER_NOT_FOUND"
+              message: "Order not found"
