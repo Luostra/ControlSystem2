@@ -43,3 +43,5 @@ docker compose up -d --build
 # Проверка статуса
 docker-compose ps
 ```
+
+Выполнил Ключников А.Д., ЭФБО-09-23
